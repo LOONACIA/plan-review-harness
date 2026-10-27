@@ -1,0 +1,3 @@
+# Only plan.yaml is tracked. Runtime state and Codex logs stay local.
+plans/*/state.json
+plans/*/runs/
