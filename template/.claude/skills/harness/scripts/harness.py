@@ -47,6 +47,7 @@ PLAN_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 STEP_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 DEFAULT_MAX_ATTEMPTS = 3
+DEFAULT_BRANCH_PREFIX = "harness"
 DEFAULT_STEP_TIMEOUT_SEC = 30 * 60
 DEFAULT_AC_TIMEOUT_SEC = 10 * 60
 TAIL_CHARS = 4000
@@ -212,7 +213,8 @@ def load_plan(plan_id: str) -> dict[str, Any]:
     if not path.exists():
         hint = ""
         if state_path(plan_id).exists():
-            hint = f" (plan {plan_id!r} was started; its files live on branch 'harness/{plan_id}', current branch is {current_branch()!r})"
+            branch = load_state(plan_id)["branch"]
+            hint = f" (plan {plan_id!r} was started; its files live on branch {branch!r}, current branch is {current_branch()!r})"
         raise HarnessError(f"plan file not found: {path}{hint}")
     plan = yaml.safe_load(path.read_text(encoding="utf-8"))
     validate_plan(plan, plan_id)
@@ -226,6 +228,9 @@ def validate_plan(plan: Any, plan_id: str) -> None:
         raise HarnessError(f"plan.yaml 'id' must be {plan_id!r}")
     if not isinstance(plan.get("goal"), str) or not plan["goal"].strip():
         raise HarnessError("plan.yaml needs a non-empty 'goal'")
+    prefix = plan.get("branch_prefix", DEFAULT_BRANCH_PREFIX)
+    if not isinstance(prefix, str) or not PLAN_ID_RE.match(prefix):
+        raise HarnessError(f"invalid branch_prefix {prefix!r}: use lowercase letters, digits and '-'")
     steps = plan.get("steps")
     if not isinstance(steps, list) or not steps:
         raise HarnessError("plan.yaml needs a non-empty 'steps' list")
@@ -294,11 +299,10 @@ def find_active_plan(explicit: str | None) -> str:
     if explicit:
         return explicit
     branch = current_branch()
-    if branch.startswith("harness/"):
-        candidate = branch[len("harness/"):]
-        if state_path(candidate).exists():
-            return candidate
     started = sorted(p.parent.name for p in PLANS_DIR.glob("*/state.json")) if PLANS_DIR.exists() else []
+    for candidate in started:
+        if load_state(candidate)["branch"] == branch:
+            return candidate
     if len(started) == 1:
         return started[0]
     if not started:
@@ -365,7 +369,7 @@ def cmd_start(args: argparse.Namespace) -> dict[str, Any]:
     if dirty:
         raise HarnessError(f"working tree must be clean before start; dirty: {dirty}")
 
-    branch = f"harness/{plan_id}"
+    branch = f"{plan.get('branch_prefix', DEFAULT_BRANCH_PREFIX)}/{plan_id}"
     existing = git("branch", "--list", branch).strip()
     if existing:
         raise HarnessError(f"branch {branch!r} already exists; delete it or choose another plan id")
@@ -763,6 +767,8 @@ def cmd_replan(args: argparse.Namespace) -> dict[str, Any]:
         )
     if plan.get("max_attempts", DEFAULT_MAX_ATTEMPTS) != old.get("max_attempts", DEFAULT_MAX_ATTEMPTS):
         raise HarnessError("max_attempts cannot change mid-run; the user decides on extra attempts with --force")
+    if plan.get("branch_prefix", DEFAULT_BRANCH_PREFIX) != old.get("branch_prefix", DEFAULT_BRANCH_PREFIX):
+        raise HarnessError(f"branch_prefix cannot change mid-run; the plan branch {state['branch']!r} already exists")
 
     new_ids = [s["id"] for s in plan["steps"]]
     added = [sid for sid in new_ids if sid not in old_steps]

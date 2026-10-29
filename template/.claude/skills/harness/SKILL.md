@@ -22,9 +22,9 @@ description: Claude plans and reviews, Codex implements. Use for multi-step impl
 ### 모드: plan
 
 1. 구체적인 스텝을 쓸 수 있을 때까지 코드베이스를 직접 탐색합니다. `CLAUDE.md`와, `docs/` 디렉토리가 있으면 PRD / ARCHITECTURE / ADR 문서를 먼저 읽으세요. 모든 스텝이 지켜야 할 제약이 거기 있습니다. 작업을 두 가지로 읽을 수 있고 그에 따라 계획이 달라질 때만 짧게 질문하고, 그 외에는 인터뷰하지 않습니다.
-2. plan id를 정합니다: 소문자, 숫자, `-` (예: `add-user-export`). 브랜치 이름 `harness/<plan-id>`가 됩니다.
+2. plan id와 브랜치 접두사를 정합니다. 둘 다 소문자, 숫자, `-`로 쓰고(예: `add-user-export`), 브랜치 이름은 `<branch_prefix>/<plan-id>`가 됩니다. 접두사는 `git branch -a`로 저장소의 브랜치 이름 관례(예: `feature/`, `bugfix/`)를 확인해 따르고, 관례가 없으면 계획의 주된 목적에 맞는 conventional 타입(`feat`, `fix`, `refactor`, `docs`, `test`, `chore` 등)을 씁니다.
 3. `.harness/plans/<plan-id>/plan.yaml`을 `approved: false`로 작성합니다(스키마는 아래).
-4. 사용자에게 간결한 요약을 보여줍니다: 목표, 스텝마다 한 줄(id, 제목, AC 개수), 보이는 위험. YAML 전체를 붙여넣지 마세요.
+4. 사용자에게 간결한 요약을 보여줍니다: 목표, 브랜치 이름, 스텝마다 한 줄(id, 제목, AC 개수), 보이는 위험. YAML 전체를 붙여넣지 마세요.
 5. 사용자가 승인하면 `approved: true`로 바꾸고 `start <plan-id>`를 실행합니다. 수정을 요청하면 YAML을 고치고 요약을 다시 보여줍니다. 대화에서 명시적인 승인 없이 `approved: true`로 바꾸지 마세요.
 6. `start` 뒤에는 바로 실행하지 말고, 새 세션에서 `/harness run`을 시작하라고 권합니다. 계획하며 탐색한 내용이 컨텍스트에 남아 스텝마다 다시 읽히는 것을 막기 위해서입니다. 실행에 필요한 정보는 `plan.yaml`과 `status`에 모두 있습니다. 사용자가 이 세션에서 계속하길 원하면 그대로 run 모드로 갑니다.
 
@@ -59,6 +59,7 @@ id: add-user-export            # 디렉토리 이름과 같아야 함
 goal: >
   한 문단: 사용자가 요청한 것과 "완료"가 무엇인지.
 approved: false                # 사용자가 승인한 뒤에만 Claude가 true로 바꿈
+branch_prefix: feat            # 브랜치 <branch_prefix>/<id>. 항상 씀(생략하면 harness)
 max_attempts: 3                # 선택, 기본 3 (첫 실행 + 재시도 2회)
 ac_timeout_sec: 600            # 선택, AC 명령 하나당
 steps:
@@ -127,11 +128,11 @@ steps:
 3. 사용자에게 바뀌는 내용을 보여줍니다: 추가·삭제·순서 변경된 스텝, 수정된 모든 `description`과 `ac`. AC가 약해졌다면 분명히 말하세요.
 4. 명시적 승인을 받으면 `approved: true`로 바꾸고 `replan`을 실행합니다. `plan.yaml`만 따로 커밋하고 `added_steps`, `removed_steps`, `changed_steps`를 보고합니다.
 
-스크립트가 강제하는 규칙: 커밋된 스텝은 순서와 내용 그대로 맨 앞에 있어야 합니다(커밋된 작업을 고치려면 새 스텝 추가). `max_attempts`는 바꿀 수 없습니다. 고친 스텝은 이미 쓴 시도 횟수를 유지합니다(다 쓰면 `--force` 여부는 사용자가 정합니다).
+스크립트가 강제하는 규칙: 커밋된 스텝은 순서와 내용 그대로 맨 앞에 있어야 합니다(커밋된 작업을 고치려면 새 스텝 추가). `max_attempts`와 `branch_prefix`는 바꿀 수 없습니다. 고친 스텝은 이미 쓴 시도 횟수를 유지합니다(다 쓰면 `--force` 여부는 사용자가 정합니다).
 
 ### 마무리
 
-`commit`이 `complete: true`를 돌려주면 `status`를 한 번 실행해 계획 전체를 요약합니다: 커밋된 스텝과 해시, 받아들인 범위 밖 파일, 미룬 것. `harness/<plan-id>` 브랜치는 사용자가 직접 머지합니다. 머지나 push를 하지 마세요.
+`commit`이 `complete: true`를 돌려주면 `status`를 한 번 실행해 계획 전체를 요약합니다: 커밋된 스텝과 해시, 받아들인 범위 밖 파일, 미룬 것. 계획 브랜치(`status`의 `branch`)는 사용자가 직접 머지합니다. 머지나 push를 하지 마세요.
 
 ### 모드: resume / status
 

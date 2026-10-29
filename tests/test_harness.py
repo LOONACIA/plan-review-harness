@@ -178,6 +178,20 @@ def test_start_creates_branch_commits_plan_and_state(repo, harness):
     assert out["goal"].startswith("데모 목표")
 
 
+def test_start_uses_branch_prefix(repo, harness):
+    write_plan(repo, extra="branch_prefix: fix\n")
+    out = harness("start", "demo")
+    assert out["branch"] == "fix/demo"
+    assert _git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip() == "fix/demo"
+
+
+def test_start_rejects_invalid_branch_prefix(repo, harness):
+    write_plan(repo, extra="branch_prefix: Fix/x\n")
+    out = harness("start", "demo", expect_code=2)
+    assert "branch_prefix" in out["error"]
+    assert _git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip() == "main"
+
+
 def test_start_rejects_unapproved_plan(repo, harness):
     write_plan(repo, approved=False)
     out = harness("start", "demo", expect_code=2)
@@ -497,9 +511,10 @@ def test_status_and_resume_find_plan_from_branch(repo, harness):
     write_plan(repo)
     harness("start", "demo")
     _git(repo, "checkout", "-q", "main")
-    write_plan(repo, "other")
+    write_plan(repo, "other", extra="branch_prefix: feat\n")
     harness("start", "other")
     # with two started plans only the current branch can pick one
+    assert harness("status")["plan"] == "other"
     _git(repo, "checkout", "-q", "harness/demo")
     out = harness("status")
     assert out["plan"] == "demo" and out["next_step"] == "s1" and out["dirty_files"] == []
@@ -572,6 +587,13 @@ def test_replan_keeps_attempts_and_max_attempts(repo, harness, fake_codex):
     out = harness("replan")
     assert out["changed_steps"] == ["s1"]
     assert out["steps"][0]["attempts"] == 1
+
+
+def test_replan_keeps_branch_prefix(repo, harness):
+    write_plan(repo)
+    harness("start", "demo")
+    edit_plan(repo, lambda p: p.update(branch_prefix="feat"))
+    assert "branch_prefix" in harness("replan", expect_code=2)["error"]
 
 
 def test_replan_preconditions(repo, harness):

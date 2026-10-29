@@ -58,9 +58,9 @@ Copy-Item "$T\AGENTS.md" "AGENTS.md"   # 기존 AGENTS.md가 있으면 수동 �
 ## 사용 흐름
 
 1. Claude Code에서 `/harness plan <작업 설명>` → Claude가 코드베이스를 탐색하고 `.harness/plans/<plan-id>/plan.yaml` 초안을 작성해 요약을 보여줍니다.
-2. 승인하면 Claude가 `approved: true`로 바꾸고 `start`를 실행합니다. `harness/<plan-id>` 브랜치가 만들어지고 plan.yaml이 커밋됩니다.
+2. 승인하면 Claude가 `approved: true`로 바꾸고 `start`를 실행합니다. `<branch_prefix>/<plan-id>` 브랜치가 만들어지고 plan.yaml이 커밋됩니다. 접두사는 Claude가 저장소의 브랜치 관례나 계획의 목적(`feat`, `fix` 등)에 맞춰 정합니다.
 3. `/harness run`(계획 단계의 탐색 내용을 끌고 가지 않도록 새 세션에서 권장) → 스텝마다 Codex 실행 → AC 명령 실행 → Claude 리뷰 → commit 또는 discard. 스텝마다 한 줄 보고, 재시도는 스텝당 총 3회.
-4. 실행 중 계획을 바꿔야 하면 Claude가 변경 내용을 보여주고, 승인 후 `replan`으로 plan.yaml만 따로 커밋합니다. 이미 커밋된 스텝은 바꿀 수 없고(보정이 필요하면 새 스텝 추가), 고친 스텝의 시도 횟수와 `max_attempts`는 그대로입니다.
+4. 실행 중 계획을 바꿔야 하면 Claude가 변경 내용을 보여주고, 승인 후 `replan`으로 plan.yaml만 따로 커밋합니다. 이미 커밋된 스텝은 바꿀 수 없고(보정이 필요하면 새 스텝 추가), 고친 스텝의 시도 횟수, `max_attempts`, `branch_prefix`는 그대로입니다.
 5. 세션이 끊기면 새 세션에서 `/harness resume`.
 6. 끝나면 사용자가 브랜치를 직접 머지합니다.
 
